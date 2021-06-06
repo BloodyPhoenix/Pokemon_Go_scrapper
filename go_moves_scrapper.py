@@ -4,30 +4,42 @@ from bs4 import BeautifulSoup
 from bs4.element import NavigableString, Tag
 from urllib.request import urlopen
 import re
+from reconnector import reconnector
+
 
 _TYPE_DICT = {"normal": "нормальный", "fighting": "боевой", "flying": "летающий", "poison": "ядовитый",
               "ground": "земляной", "rock": "каменный", "bug": "насекомый", "ghost": "призрачный", "steel": "стальной",
               "fire": "огненный", "water": "водный", "grass": "травяной", "electric": "электрический",
               "psychic": "психический", "ice": "ледяной", "dragon": "драконий", "dark": "тёмный", "fairy": "волшебный"}
 
-html = urlopen("https://serebii.net/pokemongo/moves.shtml")
-Soup = BeautifulSoup(html.read(), features="html.parser")
-moves_table = Soup.find("li", {"title": "VCurrent"})
-rows = moves_table.findAll("img", {"src": re.compile("(type)+")})
-os.chdir("..")
-for dir_path, *_ in os.walk(os.getcwd()):
-    if "Databases" in str(dir_path):
-        os.chdir(dir_path)
-connection = sqlite3.Connection("GO_Moves.db")
-with connection:
-    cursor = connection.cursor()
-    sql = "CREATE TABLE IF NOT EXISTS Fast_moves (name varchar(30), move_type varchar (15), " \
-            "pve_damage int (2), pve_energy int (2), pve_time varchar (3), " \
-            "pvp_damage int (2), pvp_energy int (2), pvp_time varchar (3))"
-    cursor.execute(sql)
-    sql = "CREATE TABLE IF NOT EXISTS Charge_moves (name varchar(30), move_type varchar (15), " \
-            "time varchar (3), pve_damage int (2), pve_energy int (1), pvp_damage int (2), pvp_energy int(3))"
-    cursor.execute(sql)
+
+@reconnector
+def reconnector_urlopen(path):
+    return urlopen(path)
+
+def run():
+    html = reconnector_urlopen("https://serebii.net/pokemongo/moves.shtml")
+    Soup = BeautifulSoup(html.read(), features="html.parser")
+    moves_table = Soup.find("li", {"title": "VCurrent"})
+    rows = moves_table.findAll("img", {"src": re.compile("(type)+")})
+    os.chdir("..")
+    for dir_path, *_ in os.walk(os.getcwd()):
+        if "Databases" in str(dir_path):
+            os.chdir(dir_path)
+    connection = sqlite3.Connection("GO_Moves.db")
+    with connection:
+        cursor = connection.cursor()
+        sql = "CREATE TABLE IF NOT EXISTS Fast_moves (name varchar(30), move_type varchar (15), " \
+              "pve_damage int (2), pve_energy int (2), pve_time varchar (3), " \
+              "pvp_damage int (2), pvp_energy int (2), pvp_time varchar (3))"
+        cursor.execute(sql)
+        sql = "CREATE TABLE IF NOT EXISTS Charge_moves (name varchar(30), move_type varchar (15), " \
+              "time varchar (3), pve_damage int (2), pve_energy int (1), pvp_damage int (2), pvp_energy int(3))"
+        cursor.execute(sql)
+    for row in rows:
+        full_row = row.parent.parent.parent
+        row_info = GetMoveInfo(full_row)
+        row_info.get_content()
 
 
 class GetMoveInfo:
@@ -142,19 +154,10 @@ class GetMoveInfo:
             self.tags.append(line)
 
 
-for row in rows:
-    full_row = row.parent.parent.parent
-    row_info = GetMoveInfo(full_row)
-    row_info.get_content()
+if __name__ == "__main__":
+    run()
 
-sql = "SELECT * FROM Fast_moves"
-cursor.execute(sql)
-for move in cursor.fetchall():
-    print(move)
-sql = "SELECT * FROM Charge_moves"
-cursor.execute(sql)
-for move in cursor.fetchall():
-    print(move)
+
 
 
 
